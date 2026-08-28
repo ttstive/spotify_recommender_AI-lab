@@ -1,0 +1,16 @@
+[project]
+name = "spotify-recommender-ai-lab"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.141.1",
+    "httpx>=0.28.1",
+    "mcp[cli]>=2.1.1",
+    "numpy>=2.4.6",
+    "pandas>=3.0.5",
+    "pydantic-settings>=2.15.0",
+    "scikit-learn>=1.9.0",
+    "uvicorn[standard]>=0.52.4",
+]

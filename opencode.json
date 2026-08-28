@@ -1,0 +1,13 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "mcp": {
+    "music_recommender": {
+      "type": "local",
+      "command": ["uv", "run", "python", "-m", "mcp_server.server"],
+      "enabled": true,
+      "environment": {
+        "MUSIC_API_BASE_URL": "http://localhost:8000/api"
+      }
+    }
+  }
+}
