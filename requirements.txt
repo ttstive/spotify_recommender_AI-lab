@@ -1,6 +1,13 @@
 fastapi
 uvicorn[standard]
 pydantic-settings
+httpx
+mcp[cli]
 numpy
 pandas
 scikit-learn
+scipy
+ipykernel
+nbclient
+nbformat
+plotly

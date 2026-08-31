@@ -1,4 +1,8 @@
 __pycache__/
 *.pyc
+.ipynb_checkpoints/
 .venv/
 .env
+roadmap_projeto_spotify_recommender.doc
+roadmap_projeto_spotify_recommender_arquivos/
+~WRD*.tmp
