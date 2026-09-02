@@ -19,3 +19,7 @@ class GenreListResponse(BaseModel):
 
 class MoodListResponse(BaseModel):
     moods: list[str]
+
+class RecommendedArtistOut(BaseModel):
+    artist: str
+    distance: float

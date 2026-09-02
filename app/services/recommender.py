@@ -38,6 +38,11 @@ class _Catalog:
     id_col: str
     scaler: StandardScaler | None = None
 
+@dataclass
+class _ArtistCatalog:
+    artists: list[str]
+    matrix: np.ndarray
+    model: NearestNeighbors
 
 def _spotify_url(track_id: str) -> str:
     return f"https://open.spotify.com/track/{track_id}"
@@ -58,6 +63,33 @@ def _build_main_catalog() -> _Catalog:
         scaler=scaler,
     )
 
+def _build_artist_catalog(main: _Catalog) -> _ArtistCatalog:
+    artist_vectors: dict[str, list[np.ndarray]] = {}
+
+    for idx, row in main.frame.iterrows():
+        artist_cell = row[main.artist_col]
+
+        for artist in artist_cell.split(";"):
+            artist = artist.strip()
+            if not artist:
+                continue
+
+            artist_vectors.setdefault(artist, []).append(main.matrix[idx])
+
+    artists = sorted(artist_vectors.keys())
+
+    matrix = np.vstack([
+        np.mean(artist_vectors[artist], axis=0)
+        for artist in artists
+    ])
+
+    model = NearestNeighbors(metric="euclidean").fit(matrix)
+
+    return _ArtistCatalog(
+        artists=artists,
+        matrix=matrix,
+        model=model,
+    )
 
 def _build_clustered_catalog() -> _Catalog:
     df = load_clustered_tracks()
@@ -77,6 +109,41 @@ def _build_clustered_catalog() -> _Catalog:
 def _catalogs() -> tuple[_Catalog, _Catalog]:
     return _build_main_catalog(), _build_clustered_catalog()
 
+@lru_cache
+def _artist_catalog() -> _ArtistCatalog:
+    main, _ = _catalogs()
+
+    artist_vectors: dict[str, list[np.ndarray]] = {}
+
+    for idx, row in main.frame.iterrows():
+        artist_cell = row[main.artist_col]
+
+        for artist in artist_cell.split(";"):
+            artist = artist.strip()
+
+            if not artist:
+                continue
+
+            artist_vectors.setdefault(artist, []).append(
+                main.matrix[idx]
+            )
+
+    artists = sorted(artist_vectors.keys())
+
+    matrix = np.vstack([
+        np.mean(artist_vectors[artist], axis=0)
+        for artist in artists
+    ])
+
+    model = NearestNeighbors(
+        metric="euclidean"
+    ).fit(matrix)
+
+    return _ArtistCatalog(
+        artists=artists,
+        matrix=matrix,
+        model=model,
+    )
 
 def warm_cache() -> None:
     """Fit both KNN models eagerly so the first request isn't slow."""
@@ -216,6 +283,56 @@ def recommend_by_artist(artist: str, limit: int = 10) -> list[RecommendedTrack]:
     vector = main.matrix[positions].mean(axis=0)
     return _recommend_from_vector(main, vector, set(positions), limit)
 
+def recommend_similar_artists(
+    artist: str,
+    limit: int = 10,
+) -> list[tuple[str, float]]:
+    main, _ = _catalogs()
+    artist_catalog = _artist_catalog()
+
+    rows = _artist_rows(main, artist)
+
+    if rows.empty:
+        return []
+
+    positions = rows.index.to_numpy()
+
+    vector = main.matrix[positions].mean(axis=0)
+
+    distances, indices = artist_catalog.model.kneighbors(
+        vector.reshape(1, -1),
+        n_neighbors=min(
+            limit + 1,
+            len(artist_catalog.artists),
+        ),
+    )
+
+    source_artists = {
+        name.strip().lower()
+        for cell in rows[main.artist_col]
+        for name in cell.split(";")
+        if name.strip()
+    }
+
+    recommendations: list[tuple[str, float]] = []
+
+    for distance, index in zip(
+        distances[0],
+        indices[0],
+    ):
+        candidate = artist_catalog.artists[index]
+
+        if candidate.strip().lower() in source_artists:
+            continue
+
+        recommendations.append(
+            (candidate, float(distance))
+        )
+
+        if len(recommendations) >= limit:
+            break
+
+    return recommendations
 
 def recommend_by_genre(genre: str, limit: int = 10) -> list[RecommendedTrack]:
     main, _ = _catalogs()

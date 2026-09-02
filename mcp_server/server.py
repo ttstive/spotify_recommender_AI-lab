@@ -50,6 +50,25 @@ class SearchSongInput(BaseModel):
     )
     limit: int = Field(default=20, description="Maximum number of results to return", ge=1, le=100)
 
+class SimilarArtistsInput(BaseModel):
+    model_config = ConfigDict(
+        str_strip_whitespace=True,
+        extra="forbid",
+    )
+
+    artist: str = Field(
+        ...,
+        description="Exact artist name to find similar artists for",
+        min_length=1,
+        max_length=200,
+    )
+
+    limit: int = Field(
+        default=10,
+        description="Maximum number of similar artists to return",
+        ge=1,
+        le=50,
+    )
 
 @mcp.tool(
     name="recommender_search_song",
@@ -129,6 +148,42 @@ async def recommender_list_moods() -> str:
         return format_api_error(exc, not_found_hint="could not list moods")
     return json.dumps(data["moods"], indent=2)
 
+@mcp.tool(
+    name="recommender_find_similar_artists",
+    annotations=_read_only_annotations("Find Similar Artists"),
+)
+async def recommender_find_similar_artists(
+    params: SimilarArtistsInput,
+) -> str:
+    """Find artists with a similar musical profile.
+
+    Uses the Music Recommender API to compare the average audio-feature
+    profile of the requested artist against profiles of other artists.
+
+    Returns:
+        JSON list of artists ranked by musical distance.
+    """
+    try:
+        data = await api_get(
+            "/recommendations/similar-artists",
+            params={
+                "artist": params.artist,
+                "limit": params.limit,
+            },
+        )
+    except Exception as exc:
+        return format_api_error(
+            exc,
+            not_found_hint=(
+                "artist not found in the database. "
+                "Call recommender_search_song with by='artist' first."
+            ),
+        )
+
+    if not data:
+        return f"No similar artists found for '{params.artist}'."
+
+    return json.dumps(data, indent=2)
 
 class SeedType(str, Enum):
     SONG = "song"
