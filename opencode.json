@@ -3,7 +3,15 @@
   "mcp": {
     "music_recommender": {
       "type": "local",
-      "command": ["uv", "run", "python", "-m", "mcp_server.server"],
+      "command": [
+        "/Users/estevaolinszip/.local/bin/uv",
+        "run",
+        "--directory",
+        "/Users/estevaolinszip/Development/spotify_recommender_AI-lab",
+        "python",
+        "-m",
+        "mcp_server.server"
+      ],
       "enabled": true,
       "environment": {
         "MUSIC_API_BASE_URL": "http://localhost:8000/api"
