@@ -43,11 +43,17 @@ No API keys or `.env` file are required — everything runs against the local CS
 uv run python main.py
 ```
 
-This starts the API on `http://localhost:8000` with autoreload. Equivalently:
+This starts the API on `http://0.0.0.0:8000` with autoreload — reachable from other
+devices on your LAN (needed for the [mobile app](#mobile-app-opencode-chat-client--catalog-browser)).
+
+Running uvicorn directly is *not* equivalent unless you pass `--host` explicitly:
 
 ```bash
-uv run uvicorn app.main:app --reload
+uv run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
+
+Without `--host 0.0.0.0`, uvicorn defaults to `127.0.0.1` — the API still works locally
+but nothing on your network (including the mobile app) can reach it.
 
 On startup, both KNN models are fit and cached in memory, so the first request isn't
 slow but boot takes a few seconds. The MCP server (below) requires this to be running.
@@ -162,6 +168,54 @@ The API base URL defaults to `http://localhost:8000/api`; override it with the
 `MUSIC_API_BASE_URL` environment variable (set in `.mcp.json` or your client config)
 if the API runs elsewhere.
 
+## Mobile app (OpenCode chat client + catalog browser)
+
+`mobile/` is a separate Expo/React Native app with two ways to get recommendations:
+a chat interface for talking to [OpenCode](https://opencode.ai) (backed by OpenRouter
+models), and a **Browse Catalog** screen (the 🔍 icon on the chat header) that calls
+the FastAPI API above directly — search by song, artist, or mood and get back a
+track list with album art, no LLM round-trip needed. Album art is fetched client-side
+from Spotify's public oEmbed endpoint, keyed off the real Spotify track IDs already
+embedded in every `spotify_url` — no Spotify credentials involved. The same track-list
+rendering is used in chat, too: a `recommender_create_playlist` tool result now shows
+as a real list with cover art instead of raw JSON.
+
+Since it talks to two separate local servers, both need to be reachable from your
+phone:
+
+1. **Start the OpenCode server**, from the repo root so `opencode.json`'s MCP
+   registration is picked up:
+   ```bash
+   export OPENROUTER_API_KEY=sk-or-v1-...        # or: opencode auth login
+   export OPENCODE_SERVER_PASSWORD=some-password  # optional, recommended once you leave localhost
+   opencode serve --hostname 0.0.0.0 --port 4096
+   ```
+2. **Start the API** (needed for both `music_recommender` tool calls in chat and the
+   Browse Catalog screen):
+   ```bash
+   uv run python main.py
+   ```
+3. **Find your computer's LAN IP** (macOS: `ipconfig getifaddr en0`) and verify both
+   servers are reachable: `curl http://<lan-ip>:4096/global/health` and
+   `curl http://<lan-ip>:8000/api/health`.
+4. **Install and start the mobile app**:
+   ```bash
+   cd mobile
+   npm install
+   npx expo start
+   ```
+5. **Open it on your phone** with [Expo Go](https://expo.dev/go) (scan the QR code).
+   If Metro isn't reachable from your phone, use `npx expo start --tunnel` instead.
+6. **Connect the app**: tap the gear icon → enter the OpenCode server URL from step 3
+   (or a Tailscale/Cloudflare Tunnel URL) → username (`opencode` by default) → password
+   from step 1 → **Test Connection** → **Save**. The Recommender API URL below it
+   defaults to the same host on port 8000 — override it only if the FastAPI app runs
+   somewhere else — then **Test Connection** → **Save** there too.
+7. Start chatting, or tap 🔍 to browse the catalog directly. Use the model button in
+   the chat header to pick a specific OpenRouter model, or leave it on the default.
+
+Full details and troubleshooting live in [`mobile/README.md`](mobile/README.md).
+
 ## Project layout
 
 ```
@@ -177,6 +231,7 @@ mcp_server/
   client.py                 Shared HTTP client + error formatting for the API above
 files/                      Source datasets
 specs/                      Design specs (see specs/mcp_server.md for the MCP server)
+mobile/                     Expo/React Native chat client for OpenCode (see mobile/README.md)
 .mcp.json                   Claude Code project MCP config
 ```
 
@@ -185,3 +240,4 @@ specs/                      Design specs (see specs/mcp_server.md for the MCP se
 See [`specs/mcp_server.md`](specs/mcp_server.md) for the full list — notably: no real
 Spotify OAuth or playlist writes, no moods beyond the fixed 7, no HTTP transport or
 auth on the MCP server.
+![alt text](image.png)

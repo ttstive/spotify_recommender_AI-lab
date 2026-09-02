@@ -2,6 +2,7 @@ from fastapi import APIRouter, Query, Request
 
 from app.core.response import error_response, success_response
 from app.models import RecommendedTrackOut, SongSearchResult
+from app.models import GenreListResponse, MoodListResponse, RecommendedTrackOut, SongSearchResult, RecommendedArtistOut
 from app.services.recommender import (
     RecommendedTrack,
     list_genres,
@@ -11,6 +12,7 @@ from app.services.recommender import (
     recommend_by_mood,
     recommend_music,
     search_songs,
+    recommend_similar_artists,
 )
 
 router = APIRouter(prefix="/api")
@@ -198,3 +200,32 @@ def recommendations_by_mood(
         message="Recomendações por mood obtidas com sucesso",
         code=200,
     )
+        raise HTTPException(status_code=404, detail="Mood not recognized. See GET /api/moods for valid values.")
+    return [_to_out(track) for track in tracks]
+
+@router.get(
+    "/recommendations/similar-artists",
+    response_model=list[RecommendedArtistOut],
+)
+def recommendations_similar_artists(
+    artist: str = Query(..., min_length=1),
+    limit: int = Query(10, ge=1, le=50),
+):
+    artists = recommend_similar_artists(
+        artist,
+        limit=limit,
+    )
+
+    if not artists:
+        raise HTTPException(
+            status_code=404,
+            detail="Artist not found in dataset",
+        )
+
+    return [
+        RecommendedArtistOut(
+            artist=artist_name,
+            distance=distance,
+        )
+        for artist_name, distance in artists
+    ]
