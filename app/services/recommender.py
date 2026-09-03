@@ -165,7 +165,9 @@ def _mood_vector(main: _Catalog, mood: str) -> np.ndarray | None:
     for feature, value in targets.items():
         raw[feature] = value
 
-    return main.scaler.transform([raw[AUDIO_FEATURES].to_numpy()])[0]
+    # Keep feature names when transforming so scikit-learn validates the same
+    # column order used when the catalog scaler was fitted.
+    return main.scaler.transform(pd.DataFrame([raw[AUDIO_FEATURES]], columns=AUDIO_FEATURES))[0]
 
 
 def _recommend_from_vector(
