@@ -10,6 +10,7 @@ from app.services.recommender import (
     recommend_by_mood,
     recommend_music,
     search_songs,
+    search_tracks,
     tracks_by_artist,
 )
 
@@ -22,6 +23,7 @@ def _to_out(track: RecommendedTrack) -> RecommendedTrackOut:
         artist=track.artists,
         spotify_url=track.spotify_url,
         distance=track.distance,
+        genre=track.genre,
         audio_features=track.audio_features,
     )
 
@@ -38,6 +40,14 @@ def songs_search(
     limit: int = Query(20, ge=1, le=100),
 ):
     return search_songs(q, by=by, limit=limit)
+
+
+@router.get("/tracks/search", response_model=list[RecommendedTrackOut])
+def tracks_search(
+    q: str = Query(..., min_length=1),
+    limit: int = Query(10, ge=1, le=20),
+):
+    return [_to_out(track) for track in search_tracks(q, limit=limit)]
 
 
 @router.get("/genres", response_model=GenreListResponse)

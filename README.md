@@ -4,6 +4,14 @@ A content-based music recommender: a FastAPI + scikit-learn KNN service, plus an
 server so an LLM client (e.g. Claude) can turn a song, artist, genre, or mood into a
 generated playlist.
 
+## Validação do PCA
+
+Execute `uv run python analysis/validate_pca.py` para refazer a análise de variância
+explicada, reconstrução e preservação dos vizinhos do KNN. O resultado atual está em
+[`analysis/PCA_VALIDATION.md`](analysis/PCA_VALIDATION.md). A validação mostrou que duas
+componentes servem para visualização, mas não preservam informação suficiente para
+substituir o espaço completo padronizado usado pelo recomendador principal.
+
 Two local catalogs back the recommendations:
 - `files/dataset(in).csv` — ~90k unique tracks (after de-duping) with full audio-feature
   vectors (danceability, energy, tempo, etc.), used to fit a `NearestNeighbors` model
