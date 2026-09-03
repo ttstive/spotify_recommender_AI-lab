@@ -11,9 +11,14 @@ export interface RecommendedTrackOut {
   artist: string;
   spotify_url: string;
   distance: number;
+  genre?: string | null;
   audio_features?: Record<string, number> | null;
 }
 
 export interface MoodListResponse {
   moods: string[];
+}
+
+export interface GenreListResponse {
+  genres: string[];
 }

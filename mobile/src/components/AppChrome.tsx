@@ -1,6 +1,6 @@
 import { Image } from 'expo-image';
 import { router, usePathname } from 'expo-router';
-import { Library, Music, Sparkles, UserRound } from 'lucide-react-native';
+import { Library, Music, Search, Sparkles, UserRound } from 'lucide-react-native';
 import { Keyboard, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useEffect, useState } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -32,7 +32,8 @@ export function BottomNav() {
   }, []);
   const items = [
     { label: 'Inicio', route: '/home' as const, Icon: Sparkles },
-    { label: 'Biblioteca', route: '/browse' as const, Icon: Library },
+    { label: 'Buscar', route: '/browse' as const, Icon: Search },
+    { label: 'Biblioteca', route: '/library' as const, Icon: Library },
     { label: 'Perfil', route: '/settings' as const, Icon: UserRound },
   ];
   if (keyboardVisible) return null;
@@ -56,7 +57,7 @@ const styles = StyleSheet.create({
   logo: { color: GREEN, fontSize: 24, fontWeight: '800' },
   avatar: { width: 32, height: 32, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(255,255,255,0.12)' },
   nav: { flexDirection: 'row', justifyContent: 'space-around', alignItems: 'center', borderTopWidth: 1, borderTopColor: 'rgba(255,255,255,0.06)', backgroundColor: '#171717' },
-  navItem: { minWidth: 72, height: 56, alignItems: 'center', justifyContent: 'center', gap: 4 },
-  navLabel: { color: MUTED, fontSize: 12 },
+  navItem: { minWidth: 62, height: 56, alignItems: 'center', justifyContent: 'center', gap: 4 },
+  navLabel: { color: MUTED, fontSize: 10 },
   navLabelActive: { color: GREEN },
 });

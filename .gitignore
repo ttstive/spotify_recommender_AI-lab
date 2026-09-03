@@ -2,3 +2,8 @@ __pycache__/
 *.pyc
 .venv/
 .env
+mobile/dist-*/
+mobile/*-check.png
+mobile/expo-qr*.png
+mobile/front-check.png
+mobile/onboarding-playwright.png

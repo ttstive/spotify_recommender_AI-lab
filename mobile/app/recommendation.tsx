@@ -1,8 +1,14 @@
 import { Image } from 'expo-image';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ArrowLeft, ExternalLink, Heart, MoreVertical, Sparkles } from 'lucide-react-native';
-import { Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { useEffect, useState } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { useLibrary } from '../src/storage/library';
+import type { RecommendedTrackOut } from '../src/api/types';
+import { generateTrackInsight } from '../src/api/trackInsight';
+import { createOpenCodeClient } from '../src/opencode/client';
+import { useConnectionConfig } from '../src/storage/connectionConfig';
 
 const fallbackArt = require('../assets/figma/metallica-master-of-puppets.png');
 const GREEN = '#53E076';
@@ -43,17 +49,36 @@ export default function RecommendationScreen() {
     art?: string;
     distance?: string;
     features?: string;
+    context?: string;
+    genre?: string;
   }>();
   const name = params.name || 'Master Of Puppets';
   const artist = params.artist || 'Metallica';
   const art = params.art ? { uri: params.art } : fallbackArt;
   const distance = params.distance ? Number(params.distance) : undefined;
+  const { isFavorite, toggleFavorite, addRecentTrack } = useLibrary();
+  const { config } = useConnectionConfig();
+  const [aiInsight, setAiInsight] = useState<string | null>(null);
+  const [loadingInsight, setLoadingInsight] = useState(false);
   let features: Record<string, number> = {};
   try {
     features = params.features ? JSON.parse(params.features) : {};
   } catch {
     features = {};
   }
+  const track: RecommendedTrackOut = { name, artist, spotify_url: params.url || '', distance: distance ?? 0, genre: params.genre, audio_features: features };
+  const favorite = params.url ? isFavorite(params.url) : false;
+  useEffect(() => { addRecentTrack(track); }, [params.url]);
+  useEffect(() => {
+    if (!config || !params.url) return;
+    let active = true;
+    setLoadingInsight(true);
+    generateTrackInsight(createOpenCodeClient(config), track, params.context || 'recomendação atual')
+      .then((text) => active && text && setAiInsight(text))
+      .catch(() => undefined)
+      .finally(() => active && setLoadingInsight(false));
+    return () => { active = false; };
+  }, [params.url, params.context, config?.baseUrl]);
 
   return (
     <SafeAreaView style={styles.screen} edges={['top', 'bottom']}>
@@ -69,7 +94,9 @@ export default function RecommendationScreen() {
             <Text style={styles.title}>{name}</Text>
             <Text style={styles.artist}>{artist}</Text>
           </View>
-          <Heart color={GREEN} fill={GREEN} size={27} />
+          <Pressable onPress={() => params.url && toggleFavorite(track)} accessibilityLabel={favorite ? 'Remover das músicas salvas' : 'Salvar música'}>
+            <Heart color={GREEN} fill={favorite ? GREEN : 'transparent'} size={27} />
+          </Pressable>
         </View>
 
         <View style={styles.insight}>
@@ -77,7 +104,8 @@ export default function RecommendationScreen() {
             <Sparkles color={GREEN} size={14} />
             <Text style={styles.insightLabelText}>POR QUE ESTA FAIXA</Text>
           </View>
-          <Text style={styles.insightText}>{buildInsight(features, distance)}</Text>
+          <Text style={styles.insightText}>{aiInsight || buildInsight(features, distance)}</Text>
+          {loadingInsight && !aiInsight ? <View style={styles.refining}><ActivityIndicator color={GREEN} size="small" /><Text style={styles.refiningText}>Personalizando análise...</Text></View> : null}
         </View>
 
         <Pressable disabled={!params.url} onPress={() => params.url && Linking.openURL(params.url)} style={[styles.spotifyButton, !params.url && styles.spotifyButtonDisabled]}>
@@ -103,6 +131,7 @@ const styles = StyleSheet.create({
   insightLabel: { flexDirection: 'row', alignItems: 'center', gap: 7, marginBottom: 10 },
   insightLabelText: { color: GREEN, fontSize: 11, letterSpacing: 0, fontWeight: '700' },
   insightText: { color: '#BCCBB9', fontSize: 14, lineHeight: 22 },
+  refining: { marginTop: 10, flexDirection: 'row', alignItems: 'center', gap: 8 }, refiningText: { color: '#7F8980', fontSize: 11 },
   spotifyButton: { height: 56, marginTop: 24, borderRadius: 28, flexDirection: 'row', gap: 9, alignItems: 'center', justifyContent: 'center', backgroundColor: GREEN },
   spotifyButtonDisabled: { opacity: 0.45 },
   spotifyText: { color: '#003914', fontSize: 18, fontWeight: '800' },

@@ -6,6 +6,7 @@ import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { getAlbumArt } from '../../api/albumArt';
 import type { RecommendedTrackOut } from '../../api/types';
 import { useColors } from '../../theme/colors';
+import { useLibrary } from '../../storage/library';
 
 export interface PlaylistToolResult {
   title?: string;
@@ -65,22 +66,31 @@ function ResultTrack({ track }: { track: RecommendedTrackOut }) {
 
 export function RecommendationResultCard({ result }: { result: PlaylistToolResult }) {
   const colors = useColors();
+  const { createPlaylist } = useLibrary();
   return (
     <View style={[styles.container, { borderColor: colors.border, backgroundColor: colors.surface }]}>
       <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
-        {result.title ?? (result.seed ? `Playlist inspired by "${result.seed}"` : 'Recommendations')}
+        {result.title ?? (result.seed ? `Seleção inspirada em ${result.seed}` : 'Recomendações')}
       </Text>
       <Text style={[styles.subtitle, { color: colors.textMuted }]}>
         {result.seed_type === 'artist' && result.seed
           ? `Faixas de ${result.seed}`
           : result.seed_type === 'similar_artist' && result.seed
             ? `Artistas do mesmo universo musical de ${result.seed}`
-          : 'Resultados calculados pelo recomendador'}
+          : result.seed_type === 'genre' && result.seed
+            ? `Faixas selecionadas dentro do gênero ${result.seed}`
+            : 'Resultados calculados pelo recomendador'}
       </Text>
       <View style={styles.list}>
         {result.tracks.slice(0, 6).map((track) => <ResultTrack key={track.spotify_url} track={track} />)}
       </View>
       {result.tracks.length > 6 && <Text style={[styles.more, { color: colors.textMuted }]}>+ {result.tracks.length - 6} faixas na seleção</Text>}
+      <Pressable
+        style={styles.saveButton}
+        onPress={() => createPlaylist(result.title || `Seleção ${result.seed || 'Spot.AI'}`, 'Criada com a IA do Spot.AI', result.tracks)}
+      >
+        <Text style={styles.saveText}>Salvar na Biblioteca</Text>
+      </Pressable>
     </View>
   );
 }
@@ -105,4 +115,6 @@ const styles = StyleSheet.create({
   trackName: { fontSize: 14, fontWeight: '700' },
   artist: { fontSize: 12, marginTop: 2 },
   more: { fontSize: 12, textAlign: 'center', paddingTop: 2 },
+  saveButton: { height: 42, marginTop: 4, borderRadius: 21, alignItems: 'center', justifyContent: 'center', backgroundColor: '#53E076' },
+  saveText: { color: '#07150B', fontSize: 13, fontWeight: '800' },
 });

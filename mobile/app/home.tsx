@@ -1,7 +1,7 @@
 import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import { MessageCircle, Music2, RefreshCw } from 'lucide-react-native';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { MessageCircle, Music2, RefreshCw, Search } from 'lucide-react-native';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, AppState, FlatList, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
@@ -10,18 +10,20 @@ import { createRecommenderClient } from '../src/api/client';
 import type { RecommendedTrackOut } from '../src/api/types';
 import { AppHeader, BottomNav } from '../src/components/AppChrome';
 import { useRecommenderConfig } from '../src/storage/recommenderConfig';
+import { useLibrary } from '../src/storage/library';
 
 const GREEN = '#53E076';
-const MOODS = [
-  { key: 'happy', title: 'Para levantar o astral' },
-  { key: 'calm', title: 'Para desacelerar' },
-  { key: 'energetic', title: 'Energia para agora' },
-  { key: 'focused', title: 'Foco sem distrações' },
-  { key: 'romantic', title: 'Clima romântico' },
-  { key: 'sad', title: 'Para dias introspectivos' },
+const CATALOG_ROWS = [
+  { key: 'romantic', title: 'Clima romântico', accepts: (track: RecommendedTrackOut) => (track.audio_features?.valence ?? 0) >= 0.38 && (track.audio_features?.energy ?? 1) <= 0.68 },
+  { key: 'energetic', title: 'Para treinar', accepts: (track: RecommendedTrackOut) => (track.audio_features?.energy ?? 0) >= 0.78 && (track.audio_features?.danceability ?? 0) >= 0.5 },
+  { key: 'happy', title: 'Descobertas da semana', accepts: (track: RecommendedTrackOut) => (track.audio_features?.popularity ?? 0) >= 35 && track.distance <= 2.2 },
 ];
 
-function HomeTrackCard({ track }: { track: RecommendedTrackOut }) {
+function reliableTracks(tracks: RecommendedTrackOut[], accepts: (track: RecommendedTrackOut) => boolean) {
+  return tracks.filter((track) => accepts(track) && (track.audio_features?.popularity ?? 0) >= 25).slice(0, 8);
+}
+
+function HomeTrackCard({ track, context }: { track: RecommendedTrackOut; context: string }) {
   const [art, setArt] = useState<string | null>(null);
   useEffect(() => {
     let active = true;
@@ -41,6 +43,8 @@ function HomeTrackCard({ track }: { track: RecommendedTrackOut }) {
           art: art ?? '',
           distance: String(track.distance),
           features: JSON.stringify(track.audio_features ?? {}),
+          context,
+          genre: track.genre ?? '',
         },
       })}
     >
@@ -55,11 +59,11 @@ function HomeTrackCard({ track }: { track: RecommendedTrackOut }) {
 
 export default function HomeScreen() {
   const { config } = useRecommenderConfig();
+  const { favorites, playlists, recentTracks } = useLibrary();
   const client = useMemo(() => config ? createRecommenderClient(config) : null, [config]);
   const [sections, setSections] = useState<{ title: string; tracks: RecommendedTrackOut[] }[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
-  const rotation = useRef(Math.floor(Math.random() * MOODS.length));
 
   const loadRecommendations = useCallback(async () => {
     if (!client) {
@@ -69,18 +73,20 @@ export default function HomeScreen() {
     }
     setLoading(true);
     setError(false);
-    const offset = rotation.current;
-    rotation.current = (rotation.current + 1) % MOODS.length;
-    const selected = [MOODS[offset], MOODS[(offset + 2) % MOODS.length]];
     try {
-      const results = await Promise.all(selected.map((mood) => client.getRecommendationsByMood(mood.key, 8)));
-      setSections(selected.map((mood, index) => ({ title: mood.title, tracks: results[index] })));
+      const results = await Promise.all(CATALOG_ROWS.map((row) => client.getRecommendationsByMood(row.key, 30)));
+      const generated = CATALOG_ROWS.map((row, index) => ({ title: row.title, tracks: reliableTracks(results[index], row.accepts) })).filter((section) => section.tracks.length >= 3);
+      const personal = favorites.length ? [{ title: 'Para você', tracks: favorites.slice(0, 8) }] : [];
+      const requested = playlists.flatMap((playlist) => playlist.tracks).filter((track, index, all) => all.findIndex((item) => item.spotify_url === track.spotify_url) === index).slice(0, 8);
+      const basedOnRequests = requested.length ? [{ title: 'Baseado nos seus pedidos', tracks: requested }] : [];
+      const recent = recentTracks.length ? [{ title: 'Ouvidas recentemente', tracks: recentTracks.slice(0, 8) }] : [];
+      setSections([...personal, ...basedOnRequests, ...generated, ...recent]);
     } catch {
       setError(true);
     } finally {
       setLoading(false);
     }
-  }, [client]);
+  }, [client, favorites, playlists, recentTracks]);
 
   useEffect(() => { loadRecommendations(); }, [loadRecommendations]);
   useEffect(() => {
@@ -103,6 +109,11 @@ export default function HomeScreen() {
             <RefreshCw color="#BCCBB9" size={20} />
           </Pressable>
         </View>
+
+        <Pressable style={styles.searchBar} onPress={() => router.push('/browse')}>
+          <Search color="#8E978F" size={19} />
+          <Text style={styles.searchText}>Busque músicas, artistas e playlists</Text>
+        </Pressable>
 
         <Pressable style={styles.askButton} onPress={() => router.push('/chat')}>
           <View style={styles.askIcon}><MessageCircle color="#07150B" fill="#07150B" size={22} /></View>
@@ -127,7 +138,7 @@ export default function HomeScreen() {
               horizontal
               data={section.tracks}
               keyExtractor={(track) => track.spotify_url}
-              renderItem={({ item }) => <HomeTrackCard track={item} />}
+              renderItem={({ item }) => <HomeTrackCard track={item} context={section.title} />}
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.horizontalList}
             />
@@ -147,6 +158,8 @@ const styles = StyleSheet.create({
   heading: { color: '#F4F5F4', fontSize: 27, lineHeight: 34, fontWeight: '800', marginTop: 4 },
   iconButton: { width: 40, height: 40, alignItems: 'center', justifyContent: 'center' },
   askButton: { minHeight: 82, marginHorizontal: 20, marginTop: 22, padding: 14, flexDirection: 'row', alignItems: 'center', gap: 13, borderWidth: 1, borderColor: 'rgba(83,224,118,0.32)', borderRadius: 8, backgroundColor: '#202220' },
+  searchBar: { height: 48, marginHorizontal: 20, marginTop: 18, paddingHorizontal: 14, flexDirection: 'row', alignItems: 'center', gap: 10, borderRadius: 6, backgroundColor: '#232623' },
+  searchText: { color: '#929B93', fontSize: 13 },
   askIcon: { width: 46, height: 46, borderRadius: 23, backgroundColor: GREEN, alignItems: 'center', justifyContent: 'center' },
   askText: { flex: 1 },
   askTitle: { color: '#F4F5F4', fontSize: 16, fontWeight: '800' },

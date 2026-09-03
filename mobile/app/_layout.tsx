@@ -6,6 +6,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ConnectionConfigContext, useConnectionConfigState } from '../src/storage/connectionConfig';
 import { RecommenderConfigContext, useRecommenderConfigState } from '../src/storage/recommenderConfig';
 import { useColors } from '../src/theme/colors';
+import { LibraryProvider } from '../src/storage/library';
 
 export default function RootLayout() {
   const connectionConfigState = useConnectionConfigState();
@@ -17,6 +18,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <ConnectionConfigContext.Provider value={connectionConfigState}>
           <RecommenderConfigContext.Provider value={recommenderConfigState}>
+            <LibraryProvider>
             <StatusBar style="light" />
             <Stack
               screenOptions={{
@@ -31,12 +33,15 @@ export default function RootLayout() {
               <Stack.Screen name="chat" options={{ headerShown: false }} />
               <Stack.Screen name="home" options={{ headerShown: false }} />
               <Stack.Screen name="recommendation" options={{ headerShown: false }} />
-              <Stack.Screen name="browse" options={{ title: 'Browse Catalog' }} />
+              <Stack.Screen name="library" options={{ headerShown: false }} />
+              <Stack.Screen name="playlist/[id]" options={{ headerShown: false }} />
+              <Stack.Screen name="browse" options={{ headerShown: false }} />
               <Stack.Screen
                 name="settings"
                 options={{ presentation: 'modal', title: 'Connection Settings' }}
               />
             </Stack>
+            </LibraryProvider>
           </RecommenderConfigContext.Provider>
         </ConnectionConfigContext.Provider>
       </SafeAreaProvider>

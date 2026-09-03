@@ -1,4 +1,4 @@
-import type { MoodListResponse, RecommendedTrackOut, SongSearchResult } from './types';
+import type { GenreListResponse, MoodListResponse, RecommendedTrackOut, SongSearchResult } from './types';
 
 export type RecommenderErrorKind = 'network' | 'not-found' | 'server' | 'unknown';
 
@@ -52,7 +52,12 @@ export function createRecommenderClient(config: RecommenderClientConfig) {
     searchSongs: (q: string, by: 'song' | 'artist' = 'song', limit = 20) =>
       request<SongSearchResult[]>(config, `/api/songs/search${qs({ q, by, limit })}`),
 
+    searchTracks: (q: string, limit = 10) =>
+      request<RecommendedTrackOut[]>(config, `/api/tracks/search${qs({ q, limit })}`),
+
     listMoods: () => request<MoodListResponse>(config, '/api/moods'),
+
+    listGenres: () => request<GenreListResponse>(config, '/api/genres'),
 
     getRecommendationsBySong: (song: string, limit = 20) =>
       request<RecommendedTrackOut[]>(config, `/api/recommendations${qs({ song, limit })}`),
@@ -65,6 +70,9 @@ export function createRecommenderClient(config: RecommenderClientConfig) {
 
     getRecommendationsByMood: (mood: string, limit = 20) =>
       request<RecommendedTrackOut[]>(config, `/api/recommendations/by-mood${qs({ mood, limit })}`),
+
+    getRecommendationsByGenre: (genre: string, limit = 20) =>
+      request<RecommendedTrackOut[]>(config, `/api/recommendations/by-genre${qs({ genre, limit })}`),
   };
 }
 
