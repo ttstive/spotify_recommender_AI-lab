@@ -1,7 +1,7 @@
 import * as Clipboard from 'expo-clipboard';
 import { router } from 'expo-router';
 import * as Haptics from 'expo-haptics';
-import { ArrowUp, Plus, Search, Settings, Square } from 'lucide-react-native';
+import { ArrowUp, History, Plus, Settings, Square } from 'lucide-react-native';
 import { useState } from 'react';
 import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,6 +11,7 @@ import { Bubble, Chat, InputToolbar, Send, type IMessage } from '@kesha-antonov/
 import { ConnectionBanner } from '../src/components/ConnectionBanner';
 import { AppHeader, BottomNav } from '../src/components/AppChrome';
 import { MessagePartsList } from '../src/components/chat/MessagePartsList';
+import { ChatHistoryModal } from '../src/components/chat/ChatHistoryModal';
 import { ModelPicker } from '../src/components/ModelPicker';
 import { CURRENT_USER, type ChatMessage } from '../src/opencode/mapToChatMessage';
 import type { MessagePart, ReasoningPart, TextPart } from '../src/opencode/types';
@@ -40,12 +41,17 @@ export default function ChatScreen() {
     sendMessage,
     interrupt,
     startNewChat,
+    openChat,
+    deleteChat,
+    chatHistory,
+    sessionId,
     selectedModel,
     setSelectedModel,
     refresh,
   } = useChatSession();
 
   const [isModelPickerVisible, setIsModelPickerVisible] = useState(false);
+  const [isHistoryVisible, setIsHistoryVisible] = useState(false);
 
   function handleSend(newMessages: IMessage[] = []) {
     const text = newMessages[0]?.text?.trim();
@@ -54,13 +60,12 @@ export default function ChatScreen() {
 
   function handleNewChat() {
     Alert.alert(
-      'Start a new chat?',
-      'This clears the current conversation from view. The old one stays on the server.',
+      'Iniciar nova conversa?',
+      'A conversa atual continuará disponível no histórico.',
       [
-        { text: 'Cancel', style: 'cancel' },
+        { text: 'Cancelar', style: 'cancel' },
         {
-          text: 'New Chat',
-          style: 'destructive',
+          text: 'Nova conversa',
           onPress: () => {
             Haptics.selectionAsync();
             startNewChat();
@@ -98,13 +103,13 @@ export default function ChatScreen() {
           <View style={[styles.dot, { backgroundColor: dotColor }]} />
           <Pressable onPress={() => setIsModelPickerVisible(true)}>
             <Text style={[styles.modelLabel, { color: colors.text }]} numberOfLines={1}>
-              {selectedModel ? selectedModel.modelID : 'Modelo padrao'}
+              {selectedModel ? selectedModel.modelID : 'Modelo padrão'}
             </Text>
           </Pressable>
         </View>
         <View style={styles.headerRight}>
-          <Pressable onPress={() => router.push('/browse')} hitSlop={8} style={styles.headerButton}>
-            <Search color={colors.accent} size={20} />
+          <Pressable onPress={() => setIsHistoryVisible(true)} hitSlop={8} style={styles.headerButton} accessibilityLabel="Abrir histórico">
+            <History color={colors.accent} size={20} />
           </Pressable>
           <Pressable onPress={handleNewChat} hitSlop={8} style={styles.headerButton}>
             <Plus color={colors.accent} size={22} />
@@ -136,17 +141,19 @@ export default function ChatScreen() {
           renderDay={() => null}
           renderTime={() => null}
           isDayAnimationEnabled={false}
-          renderBubble={(props) => (
+          renderBubble={(props) => {
+            const hasRecommendation = props.currentMessage?.parts?.some((part) => part.type === 'tool' && part.tool === 'recommender_create_playlist');
+            return (
             <Bubble
               {...props}
-              wrapperStyle={{ left: styles.incomingBubble, right: styles.outgoingBubble }}
+              wrapperStyle={{ left: [styles.incomingBubble, hasRecommendation && styles.recommendationBubble], right: styles.outgoingBubble }}
               containerStyle={{ left: styles.bubbleContainerLeft, right: styles.bubbleContainerRight }}
               renderMessageText={(textProps) => (
                 <MessagePartsList message={textProps.currentMessage} position={textProps.position ?? 'left'} />
               )}
               renderTime={() => null}
             />
-          )}
+          ); }}
           renderInputToolbar={(props) => <InputToolbar {...props} containerStyle={styles.inputToolbar} />}
           textInputProps={{ placeholder: 'Descreva a vibe que voce procura...', placeholderTextColor: colors.textMuted, style: styles.composer }}
           isSendButtonAlwaysVisible
@@ -164,7 +171,7 @@ export default function ChatScreen() {
               {error && (
                 <View style={[styles.errorBar, { backgroundColor: colors.surface, borderColor: colors.border }]}>
                   <Text style={[styles.errorText, { color: colors.text }]} numberOfLines={2}>
-                    Nao foi possivel enviar agora.
+                    Não foi possível enviar agora.
                   </Text>
                   {canRetry && (
                     <Pressable onPress={retryLastMessage} hitSlop={8}>
@@ -208,6 +215,15 @@ export default function ChatScreen() {
         selected={selectedModel}
         onSelect={setSelectedModel}
       />
+      <ChatHistoryModal
+        visible={isHistoryVisible}
+        items={chatHistory}
+        currentId={sessionId}
+        onClose={() => setIsHistoryVisible(false)}
+        onSelect={openChat}
+        onNew={startNewChat}
+        onDelete={deleteChat}
+      />
     </SafeAreaView>
   );
 }
@@ -224,6 +240,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#131313',
   },
   incomingBubble: { maxWidth: '88%', padding: 16, borderRadius: 16, borderTopLeftRadius: 2, borderWidth: 1, borderColor: 'rgba(255,255,255,0.1)', backgroundColor: 'rgba(33,33,33,0.92)' },
+  recommendationBubble: { width: '94%', maxWidth: '94%', padding: 8, backgroundColor: 'transparent', borderWidth: 0 },
   outgoingBubble: { maxWidth: '88%', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, borderTopRightRadius: 2, backgroundColor: '#53E076' },
   bubbleContainerLeft: { marginLeft: 12, marginBottom: 8 },
   bubbleContainerRight: { marginRight: 12, marginBottom: 8 },

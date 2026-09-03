@@ -4,13 +4,15 @@ import { useConnectionConfig } from '../storage/connectionConfig';
 import { createRecommenderClient } from '../api/client';
 import { useRecommenderConfig } from '../storage/recommenderConfig';
 import {
-  clearCachedMessages,
+  deleteCachedChat,
+  getChatHistory,
   getCachedMessages,
   getStoredModel,
   getStoredSessionId,
   setCachedMessages,
   setStoredModel,
   setStoredSessionId,
+  type ChatHistoryItem,
 } from '../storage/localStorage';
 import { createOpenCodeClient, OpenCodeError } from './client';
 import {
@@ -26,7 +28,7 @@ import { useEventStream } from './useEventStream';
 const POLL_INTERVAL_MS = 5000;
 const DEFAULT_MODEL: ModelRef = { providerID: 'opencode', modelID: 'mimo-v2.5-free' };
 
-type RecommendationIntent = { type: 'artist' | 'similar_artist' | 'song' | 'mood'; seed: string; size: number };
+type RecommendationIntent = { type: 'artist' | 'similar_artist' | 'song' | 'genre' | 'mood'; seed: string; size: number };
 
 const MOOD_TERMS: Record<string, string> = {
   triste: 'sad', tristes: 'sad', melancolica: 'sad', melancolicas: 'sad',
@@ -37,6 +39,13 @@ const MOOD_TERMS: Record<string, string> = {
   raiva: 'angry', agressiva: 'angry', foco: 'focused', estudar: 'focused', concentrar: 'focused',
 };
 
+const GENRE_TERMS: Record<string, string> = {
+  rap: 'hip-hop', 'hip hop': 'hip-hop', hiphop: 'hip-hop', trap: 'hip-hop',
+  rock: 'rock', metal: 'metal', pop: 'pop', funk: 'funk', jazz: 'jazz',
+  reggae: 'reggae', sertanejo: 'sertanejo', samba: 'samba', pagode: 'pagode',
+  eletronica: 'electronic', techno: 'techno', house: 'house', 'r&b': 'r-n-b',
+};
+
 function recommendationIntent(text: string): RecommendationIntent | null {
   const normalized = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   if (!/(recomend|playlist|musica|faixa|parecid|ouvir)/.test(normalized)) return null;
@@ -45,6 +54,10 @@ function recommendationIntent(text: string): RecommendationIntent | null {
 
   for (const [term, mood] of Object.entries(MOOD_TERMS)) {
     if (new RegExp(`\\b${term}\\b`).test(normalized)) return { type: 'mood', seed: mood, size };
+  }
+
+  for (const [term, genre] of Object.entries(GENRE_TERMS)) {
+    if (new RegExp(`\\b${term.replace(' ', '\\s+')}\\b`).test(normalized)) return { type: 'genre', seed: genre, size };
   }
 
   const explicitArtist = text.match(/(?:artista|cantor(?:a)?|banda)\s+([^?!,.]+)/i);
@@ -136,6 +149,7 @@ export function useChatSession() {
   const [error, setError] = useState<string | null>(null);
   const [lastFailedText, setLastFailedText] = useState<string | null>(null);
   const [selectedModel, setSelectedModelState] = useState<ModelRef>(DEFAULT_MODEL);
+  const [chatHistory, setChatHistory] = useState<ChatHistoryItem[]>([]);
 
   const messagesRef = useRef(messages);
   messagesRef.current = messages;
@@ -291,8 +305,7 @@ export function useChatSession() {
     let cancelled = false;
 
     (async () => {
-      const [cached, storedModel] = await Promise.all([getCachedMessages(), getStoredModel()]);
-      if (!cancelled && cached.length) setMessages(cached);
+      const storedModel = await getStoredModel();
       if (!cancelled && storedModel?.modelID === DEFAULT_MODEL.modelID) setSelectedModelState(storedModel);
       else setStoredModel(DEFAULT_MODEL);
 
@@ -311,14 +324,23 @@ export function useChatSession() {
       }
       if (cancelled) return;
       setSessionId(id);
+      const sessionCache = await getCachedMessages(id);
+      const cached = sessionCache.length ? sessionCache : await getCachedMessages();
+      if (!cancelled && cached.length) setMessages(cached);
 
       try {
         const raw = await client.getMessages(id);
-        if (!cancelled) setMessages(raw.map(mapToChatMessage));
+        if (!cancelled) {
+          const localMessages = cached.filter((message) => String(message._id).startsWith('local-'));
+          setMessages([...raw.map(mapToChatMessage), ...localMessages]);
+        }
       } catch {
         // keep whatever cached/local messages we have; SSE/poll will catch up
       }
-      if (!cancelled) setIsReady(true);
+      if (!cancelled) {
+        setChatHistory(await getChatHistory());
+        setIsReady(true);
+      }
     })();
 
     return () => {
@@ -328,11 +350,12 @@ export function useChatSession() {
 
   // Debounced cache write.
   useEffect(() => {
+    if (!sessionId) return;
     const timeout = setTimeout(() => {
-      setCachedMessages(messagesRef.current);
+      setCachedMessages(sessionId, messagesRef.current).then(() => getChatHistory()).then(setChatHistory);
     }, 800);
     return () => clearTimeout(timeout);
-  }, [messages]);
+  }, [messages, sessionId]);
 
   // Polling fallback alongside SSE.
   useEffect(() => {
@@ -401,17 +424,25 @@ export function useChatSession() {
           parts: [startPart],
         }]);
         try {
-          const tracks = intent.type === 'artist'
-            ? await recommender.getTracksByArtist(intent.seed, intent.size)
-            : intent.type === 'similar_artist'
-              ? await recommender.getRecommendationsByArtist(intent.seed, intent.size)
-            : intent.type === 'mood'
-              ? await recommender.getRecommendationsByMood(intent.seed, intent.size)
-              : await recommender.getRecommendationsBySong(intent.seed, intent.size);
+          let resolvedIntent = intent;
+          if (intent.type === 'song') {
+            const matches = await recommender.searchSongs(intent.seed, 'artist', 8).catch(() => []);
+            const isExactArtist = matches.some((item) => item.artist.split(';').some((name) => name.trim().toLowerCase() === intent.seed.toLowerCase()));
+            if (isExactArtist) resolvedIntent = { ...intent, type: 'similar_artist' };
+          }
+          const tracks = resolvedIntent.type === 'artist'
+            ? await recommender.getTracksByArtist(resolvedIntent.seed, resolvedIntent.size)
+            : resolvedIntent.type === 'similar_artist'
+              ? await recommender.getRecommendationsByArtist(resolvedIntent.seed, resolvedIntent.size)
+              : resolvedIntent.type === 'genre'
+                ? await recommender.getRecommendationsByGenre(resolvedIntent.seed, resolvedIntent.size)
+                : resolvedIntent.type === 'mood'
+                  ? await recommender.getRecommendationsByMood(resolvedIntent.seed, resolvedIntent.size)
+                  : await recommender.getRecommendationsBySong(resolvedIntent.seed, resolvedIntent.size);
           const output = JSON.stringify({
-            title: intent.type === 'mood' ? 'Uma selecao para o seu momento' : `Inspirada em ${intent.seed}`,
-            seed_type: intent.type,
-            seed: intent.seed,
+            title: resolvedIntent.type === 'mood' ? 'Uma seleção para o seu momento' : resolvedIntent.type === 'genre' ? `${resolvedIntent.size} faixas de ${resolvedIntent.seed}` : `Inspirada em ${resolvedIntent.seed}`,
+            seed_type: resolvedIntent.type,
+            seed: resolvedIntent.seed,
             tracks,
           });
           setMessages((prev) => prev.map((message) => message._id === assistantId ? {
@@ -481,13 +512,45 @@ export function useChatSession() {
     if (!client) return;
     const created = await client.createSession();
     await setStoredSessionId(created.id);
-    await clearCachedMessages();
     pendingOptimisticIdRef.current = null;
     setSessionId(created.id);
     setMessages([]);
     setError(null);
     setLastFailedText(null);
   }, [client]);
+
+  const openChat = useCallback(async (nextSessionId: string) => {
+    if (!client || nextSessionId === sessionId) return;
+    if (sessionId && messagesRef.current.length) {
+      await setCachedMessages(sessionId, messagesRef.current);
+    }
+    pendingOptimisticIdRef.current = null;
+    setError(null);
+    setLastFailedText(null);
+    setSessionId(nextSessionId);
+    await setStoredSessionId(nextSessionId);
+    const cached = await getCachedMessages(nextSessionId);
+    setMessages(cached);
+    try {
+      const raw = await client.getMessages(nextSessionId);
+      const localMessages = cached.filter((message) => String(message._id).startsWith('local-'));
+      setMessages([...raw.map(mapToChatMessage), ...localMessages]);
+    } catch {
+      // The local copy remains useful if the server is temporarily offline.
+    }
+  }, [client, sessionId]);
+
+  const deleteChat = useCallback(async (targetSessionId: string) => {
+    if (!client) return;
+    try {
+      await client.deleteSession(targetSessionId);
+    } catch {
+      // Removing the local entry is still useful when the server is offline.
+    }
+    await deleteCachedChat(targetSessionId);
+    setChatHistory(await getChatHistory());
+    if (targetSessionId === sessionId) await startNewChat();
+  }, [client, sessionId, startNewChat]);
 
   const setSelectedModel = useCallback((model: ModelRef) => {
     setSelectedModelState(model);
@@ -521,6 +584,10 @@ export function useChatSession() {
     sendMessage,
     interrupt,
     startNewChat,
+    openChat,
+    deleteChat,
+    chatHistory,
+    sessionId,
     selectedModel,
     setSelectedModel,
     refresh,
