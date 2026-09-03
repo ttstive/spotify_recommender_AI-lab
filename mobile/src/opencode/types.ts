@@ -68,11 +68,12 @@ export interface OpenCodeMessage {
   sessionID: string;
   role: 'user' | 'assistant';
   parts: MessagePart[];
+  createdAt?: number;
 }
 
 /** Raw wire format for one message, as returned by the message endpoints. */
 export interface RawMessageEnvelope {
-  info: { id: string; sessionID: string; role: 'user' | 'assistant' };
+  info: { id: string; sessionID: string; role: 'user' | 'assistant'; time?: { created?: number } };
   parts: MessagePart[];
 }
 
@@ -110,6 +111,10 @@ export interface SSEEvent {
     sessionID?: string;
     info?: RawMessageEnvelope['info'];
     part?: MessagePart;
+    messageID?: string;
+    partID?: string;
+    field?: string;
+    delta?: string;
     [key: string]: unknown;
   };
 }

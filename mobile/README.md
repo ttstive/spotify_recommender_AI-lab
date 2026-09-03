@@ -100,7 +100,7 @@ brew install cocoapods   # one-time, if you don't have it
 | "Could not reach that address" | Wrong URL/port, `opencode serve` not running, or not bound to `0.0.0.0` |
 | "Wrong username or password" | `OPENCODE_SERVER_PASSWORD`/username mismatch |
 | Tool calls never appear | The FastAPI app (`app/`) and/or the MCP server aren't running |
-| `GET /mcp` shows `music_recommender` as `"status": "failed"` | `opencode serve` was started from the wrong directory (e.g. from inside `mobile/` after `cd`ing there earlier) — `opencode.json`'s command is directory-independent (`uv run --directory <repo root> ...`), but if you edited it back to a bare `uv` command this will resurface; restart `opencode serve` from the repo root |
+| `GET /mcp` shows `music_recommender` as `"status": "failed"` | Confirm that `uv` is available on `PATH`, stop OpenCode, return to the repository root, and restart `opencode serve`. The portable `opencode.json` intentionally contains no Windows or macOS user paths. |
 | Everything connects but responses never start | Check `opencode serve`'s own logs — the OpenRouter key or model config may be invalid |
 | Browse Catalog: "Recommender server not configured" | The Recommender API URL in Settings is empty and couldn't be auto-derived (no OpenCode server configured yet) — set it manually |
 | Browse Catalog: "Could not reach the recommender server" | The FastAPI app (`uv run python main.py`) isn't running, or the Recommender API URL's host/port is wrong — `curl http://<lan-ip>:8000/api/health` from your computer to confirm it's reachable |

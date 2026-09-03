@@ -3,6 +3,9 @@
   "version": "1.0.0",
   "main": "expo-router/entry",
   "dependencies": {
+    "@expo-google-fonts/hanken-grotesk": "^0.4.3",
+    "@expo-google-fonts/plus-jakarta-sans": "^0.4.2",
+    "@expo/metro-runtime": "~6.1.2",
     "@kesha-antonov/react-native-chat": "^4.4.0",
     "@react-native-async-storage/async-storage": "2.2.0",
     "expo": "~54.0.37",
@@ -14,7 +17,9 @@
     "expo-router": "~6.0.24",
     "expo-secure-store": "~15.0.8",
     "expo-status-bar": "~3.0.9",
+    "lucide-react-native": "^1.40.0",
     "react": "19.1.0",
+    "react-dom": "19.1.0",
     "react-native": "0.81.5",
     "react-native-gesture-handler": "~2.28.0",
     "react-native-keyboard-controller": "1.18.5",
@@ -22,6 +27,8 @@
     "react-native-safe-area-context": "~5.6.0",
     "react-native-screens": "~4.16.0",
     "react-native-sse": "^1.2.1",
+    "react-native-svg": "15.12.1",
+    "react-native-web": "^0.21.0",
     "react-native-worklets": "0.5.1"
   },
   "devDependencies": {

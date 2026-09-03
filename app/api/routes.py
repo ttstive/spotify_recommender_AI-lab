@@ -10,6 +10,7 @@ from app.services.recommender import (
     recommend_by_mood,
     recommend_music,
     search_songs,
+    tracks_by_artist,
 )
 
 router = APIRouter(prefix="/api")
@@ -21,6 +22,7 @@ def _to_out(track: RecommendedTrack) -> RecommendedTrackOut:
         artist=track.artists,
         spotify_url=track.spotify_url,
         distance=track.distance,
+        audio_features=track.audio_features,
     )
 
 
@@ -65,6 +67,17 @@ def recommendations_by_artist(
     limit: int = Query(10, ge=1, le=50),
 ):
     tracks = recommend_by_artist(artist, limit=limit)
+    if not tracks:
+        raise HTTPException(status_code=404, detail="Artist not found in dataset")
+    return [_to_out(track) for track in tracks]
+
+
+@router.get("/tracks/by-artist", response_model=list[RecommendedTrackOut])
+def artist_tracks(
+    artist: str = Query(..., min_length=1),
+    limit: int = Query(10, ge=1, le=50),
+):
+    tracks = tracks_by_artist(artist, limit=limit)
     if not tracks:
         raise HTTPException(status_code=404, detail="Artist not found in dataset")
     return [_to_out(track) for track in tracks]

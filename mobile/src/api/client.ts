@@ -60,6 +60,9 @@ export function createRecommenderClient(config: RecommenderClientConfig) {
     getRecommendationsByArtist: (artist: string, limit = 20) =>
       request<RecommendedTrackOut[]>(config, `/api/recommendations/by-artist${qs({ artist, limit })}`),
 
+    getTracksByArtist: (artist: string, limit = 20) =>
+      request<RecommendedTrackOut[]>(config, `/api/tracks/by-artist${qs({ artist, limit })}`),
+
     getRecommendationsByMood: (mood: string, limit = 20) =>
       request<RecommendedTrackOut[]>(config, `/api/recommendations/by-mood${qs({ mood, limit })}`),
   };

@@ -11,6 +11,7 @@ class RecommendedTrackOut(BaseModel):
     artist: str
     spotify_url: str
     distance: float
+    audio_features: dict[str, float] | None = None
 
 
 class GenreListResponse(BaseModel):

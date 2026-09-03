@@ -26,6 +26,7 @@ class RecommendedTrack:
     artists: str
     spotify_url: str
     distance: float
+    audio_features: dict[str, float] | None = None
 
 
 @dataclass
@@ -184,6 +185,11 @@ def _recommend_from_vector(
                 artists=row[catalog.artist_col],
                 spotify_url=_spotify_url(row[catalog.id_col]),
                 distance=float(dist),
+                audio_features={
+                    feature: float(row[feature])
+                    for feature in AUDIO_FEATURES
+                    if feature in row.index and pd.notna(row[feature])
+                } or None,
             )
         )
         if len(recommendations) >= limit:
@@ -214,7 +220,99 @@ def recommend_by_artist(artist: str, limit: int = 10) -> list[RecommendedTrack]:
 
     positions = rows.index.to_numpy()
     vector = main.matrix[positions].mean(axis=0)
-    return _recommend_from_vector(main, vector, set(positions), limit)
+
+    # Keep similarity inside the artist's dominant genre. Audio proximity by
+    # itself can cross stylistic boundaries (for example rap into tango).
+    genre_scores = rows.groupby("track_genre")["popularity"].sum().sort_values(ascending=False)
+    dominant_genre = genre_scores.index[0]
+    allowed = set(main.frame.index[main.frame["track_genre"] == dominant_genre].tolist())
+    distances = np.linalg.norm(main.matrix - vector, axis=1)
+    candidates = sorted(allowed - set(positions), key=lambda index: distances[index])
+
+    recommendations: list[RecommendedTrack] = []
+    requested_artist = artist.strip().lower()
+    collaborators = {
+        name.strip().lower()
+        for cell in rows[main.artist_col]
+        for name in cell.split(";")
+        if name.strip().lower() != requested_artist
+    }
+    collaborator_rows = main.frame.loc[list(allowed - set(positions))]
+    collaborator_rows = collaborator_rows[
+        collaborator_rows[main.artist_col].apply(
+            lambda cell: any(name.strip().lower() in collaborators for name in cell.split(";"))
+        )
+    ].sort_values("popularity", ascending=False)
+
+    used_urls: set[str] = set()
+    collaborator_limit = int(np.ceil(limit * 0.6))
+    for _, row in collaborator_rows.iterrows():
+        url = _spotify_url(row[main.id_col])
+        if url in used_urls:
+            continue
+        recommendations.append(
+            RecommendedTrack(
+                name=row[main.name_col],
+                artists=row[main.artist_col],
+                spotify_url=url,
+                distance=float(distances[row.name]),
+                audio_features={
+                    feature: float(row[feature])
+                    for feature in AUDIO_FEATURES
+                    if feature in row.index and pd.notna(row[feature])
+                } or None,
+            )
+        )
+        used_urls.add(url)
+        if len(recommendations) >= collaborator_limit:
+            break
+
+    for index in candidates:
+        row = main.frame.loc[index]
+        url = _spotify_url(row[main.id_col])
+        if url in used_urls:
+            continue
+        recommendations.append(
+            RecommendedTrack(
+                name=row[main.name_col],
+                artists=row[main.artist_col],
+                spotify_url=url,
+                distance=float(distances[index]),
+                audio_features={
+                    feature: float(row[feature])
+                    for feature in AUDIO_FEATURES
+                    if feature in row.index and pd.notna(row[feature])
+                } or None,
+            )
+        )
+        used_urls.add(url)
+        if len(recommendations) >= limit:
+            break
+    return recommendations
+
+
+def tracks_by_artist(artist: str, limit: int = 10) -> list[RecommendedTrack]:
+    main, _ = _catalogs()
+    rows = _artist_rows(main, artist)
+    if rows.empty:
+        return []
+
+    ranked_rows = rows.sort_values("popularity", ascending=False) if "popularity" in rows.columns else rows
+    ranked_rows = ranked_rows.drop_duplicates(subset=[main.name_col]).head(limit)
+    return [
+        RecommendedTrack(
+            name=row[main.name_col],
+            artists=row[main.artist_col],
+            spotify_url=_spotify_url(row[main.id_col]),
+            distance=0.0,
+            audio_features={
+                feature: float(row[feature])
+                for feature in AUDIO_FEATURES
+                if feature in row.index and pd.notna(row[feature])
+            } or None,
+        )
+        for _, row in ranked_rows.iterrows()
+    ]
 
 
 def recommend_by_genre(genre: str, limit: int = 10) -> list[RecommendedTrack]:

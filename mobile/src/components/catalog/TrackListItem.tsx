@@ -1,6 +1,8 @@
 import { Image } from 'expo-image';
+import { router } from 'expo-router';
+import { MoreVertical } from 'lucide-react-native';
 import { useEffect, useState } from 'react';
-import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { getAlbumArt } from '../../api/albumArt';
 import type { RecommendedTrackOut } from '../../api/types';
@@ -23,7 +25,20 @@ export function TrackListItem({ track }: { track: RecommendedTrackOut }) {
   }, [track.spotify_url]);
 
   return (
-    <Pressable style={styles.row} onPress={() => Linking.openURL(track.spotify_url)}>
+    <Pressable
+      style={[styles.row, { backgroundColor: colors.surface, borderColor: colors.border }]}
+      onPress={() => router.push({
+        pathname: '/recommendation' as never,
+        params: {
+          name: track.name,
+          artist: track.artist,
+          url: track.spotify_url,
+          art: artUrl ?? '',
+          distance: String(track.distance),
+          features: JSON.stringify(track.audio_features ?? {}),
+        },
+      })}
+    >
       <View style={[styles.artWrapper, { backgroundColor: colors.surface }]}>
         {artUrl ? (
           <Image source={{ uri: artUrl }} style={styles.art} contentFit="cover" transition={150} />
@@ -39,6 +54,7 @@ export function TrackListItem({ track }: { track: RecommendedTrackOut }) {
           {track.artist}
         </Text>
       </View>
+      <MoreVertical color={colors.textMuted} size={20} />
     </Pressable>
   );
 }
@@ -48,8 +64,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 12,
-    paddingVertical: 8,
-    paddingHorizontal: 4,
+    marginHorizontal: 20,
+    marginBottom: 8,
+    padding: 16,
+    borderWidth: 1,
+    borderRadius: 12,
   },
   artWrapper: {
     width: ART_SIZE,
@@ -71,8 +90,8 @@ const styles = StyleSheet.create({
     gap: 2,
   },
   name: {
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 18,
+    fontWeight: '700',
   },
   artist: {
     fontSize: 13,

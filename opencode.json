@@ -1,13 +1,12 @@
 {
   "$schema": "https://opencode.ai/config.json",
+  "model": "opencode/mimo-v2.5-free",
   "mcp": {
     "music_recommender": {
       "type": "local",
       "command": [
-        "/Users/estevaolinszip/.local/bin/uv",
+        "uv",
         "run",
-        "--directory",
-        "/Users/estevaolinszip/Development/spotify_recommender_AI-lab",
         "python",
         "-m",
         "mcp_server.server"

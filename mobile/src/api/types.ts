@@ -11,6 +11,7 @@ export interface RecommendedTrackOut {
   artist: string;
   spotify_url: string;
   distance: number;
+  audio_features?: Record<string, number> | null;
 }
 
 export interface MoodListResponse {

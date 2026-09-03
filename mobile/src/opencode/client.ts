@@ -60,6 +60,7 @@ function flattenMessage(raw: RawMessageEnvelope): OpenCodeMessage {
     sessionID: raw.info.sessionID,
     role: raw.info.role,
     parts: raw.parts,
+    createdAt: raw.info.time?.created,
   };
 }
 

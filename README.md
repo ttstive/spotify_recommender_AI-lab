@@ -148,7 +148,9 @@ OpenCode does **not** read `.mcp.json` (that's Claude's format) — it uses its 
 ```
 
 As with Claude Code, OpenCode reads this file at startup, so restart OpenCode after it
-changes for the server to show up.
+changes for the server to show up. The command is intentionally path-independent so
+the same config works on Windows, macOS, and Linux: `uv` must be available on `PATH`,
+and `opencode serve` must be started from the repository root.
 
 ### MCP Inspector (no LLM client needed)
 

@@ -3,6 +3,7 @@ import { ActivityIndicator, Pressable, StyleSheet, Text, TextInput, View } from 
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { createRecommenderClient, RecommenderError } from '../src/api/client';
+import { AppHeader, BottomNav } from '../src/components/AppChrome';
 import type { RecommendedTrackOut, SongSearchResult } from '../src/api/types';
 import { TrackList } from '../src/components/catalog/TrackList';
 import { useRecommenderConfig } from '../src/storage/recommenderConfig';
@@ -17,6 +18,22 @@ const MODES: { key: Mode; label: string }[] = [
 
 const RESULTS_LIMIT = 20;
 const SEARCH_DEBOUNCE_MS = 300;
+
+function matchingArtists(results: SongSearchResult[], query: string): SongSearchResult[] {
+  const normalizedQuery = query.trim().toLocaleLowerCase();
+  const seen = new Set<string>();
+  const artists: SongSearchResult[] = [];
+  for (const result of results) {
+    for (const name of result.artist.split(';').map((value) => value.trim())) {
+      const key = name.toLocaleLowerCase();
+      if (!key.includes(normalizedQuery) || seen.has(key)) continue;
+      seen.add(key);
+      artists.push({ artist: name, song: result.song });
+      if (artists.length === 6) return artists;
+    }
+  }
+  return artists;
+}
 
 export default function BrowseScreen() {
   const colors = useColors();
@@ -54,19 +71,12 @@ export default function BrowseScreen() {
     let cancelled = false;
     const timeout = setTimeout(async () => {
       try {
-        const results = await client.searchSongs(query.trim(), mode);
+        const results = await client.searchSongs(query.trim(), mode, mode === 'artist' ? 40 : 6);
         if (cancelled) return;
         if (mode === 'artist') {
-          const seen = new Set<string>();
-          const deduped: SongSearchResult[] = [];
-          for (const r of results) {
-            if (seen.has(r.artist)) continue;
-            seen.add(r.artist);
-            deduped.push(r);
-          }
-          setSuggestions(deduped);
+          setSuggestions(matchingArtists(results, query));
         } else {
-          setSuggestions(results);
+          setSuggestions(results.slice(0, 6));
         }
       } catch {
         if (!cancelled) setSuggestions([]);
@@ -124,7 +134,7 @@ export default function BrowseScreen() {
     setSuggestions([]);
     runSearch(
       () => client.getRecommendationsByArtist(suggestion.artist, RESULTS_LIMIT),
-      `Fans of ${suggestion.artist} also like`,
+      `Parecidas com ${suggestion.artist}`,
     );
   }
 
@@ -146,6 +156,7 @@ export default function BrowseScreen() {
 
   const header = (
     <View style={styles.header}>
+      <Text style={[styles.pageTitle, { color: colors.text }]}>Sua Biblioteca</Text>
       <View style={[styles.tabs, { borderColor: colors.border }]}>
         {MODES.map(({ key, label }) => {
           const active = key === mode;
@@ -212,11 +223,13 @@ export default function BrowseScreen() {
 
   return (
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['bottom']}>
+      <AppHeader />
       <TrackList
         tracks={tracks}
         emptyMessage={heading ? 'No matches — try another search.' : 'Search for a song, artist, or mood to get started.'}
         ListHeaderComponent={header}
       />
+      <BottomNav />
     </SafeAreaView>
   );
 }
@@ -226,9 +239,10 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   header: {
-    padding: 16,
+    padding: 20,
     gap: 12,
   },
+  pageTitle: { fontSize: 36, lineHeight: 44, fontWeight: '800', marginBottom: 4 },
   tabs: {
     flexDirection: 'row',
     borderWidth: StyleSheet.hairlineWidth * 2,
@@ -255,10 +269,14 @@ const styles = StyleSheet.create({
     borderWidth: StyleSheet.hairlineWidth * 2,
     borderRadius: 10,
     overflow: 'hidden',
+    maxHeight: 286,
   },
   suggestionRow: {
     paddingHorizontal: 12,
-    paddingVertical: 10,
+    minHeight: 44,
+    justifyContent: 'center',
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: '#303230',
   },
   chipRow: {
     flexDirection: 'row',

@@ -1,289 +1,95 @@
-import * as Clipboard from 'expo-clipboard';
+import { HankenGrotesk_400Regular, HankenGrotesk_500Medium, HankenGrotesk_600SemiBold } from '@expo-google-fonts/hanken-grotesk';
+import { PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold } from '@expo-google-fonts/plus-jakarta-sans';
+import { useFonts } from 'expo-font';
+import { Image } from 'expo-image';
 import { router } from 'expo-router';
-import * as Haptics from 'expo-haptics';
-import { useState } from 'react';
-import { Alert, Pressable, StyleSheet, Text, View } from 'react-native';
+import { StatusBar } from 'expo-status-bar';
+import { Pressable, StyleSheet, Text, useWindowDimensions, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
-import { Chat, Send, type IMessage } from '@kesha-antonov/react-native-chat';
+const heroImage = require('../assets/figma/onboarding-hero.png');
+const soundwaveIcon = require('../assets/figma/soundwave.svg');
+const sparklesIcon = require('../assets/figma/sparkles.svg');
+const brandIcon = require('../assets/figma/brand-wave.svg');
+const spotifyIcon = require('../assets/figma/spotify.svg');
 
-import { ConnectionBanner } from '../src/components/ConnectionBanner';
-import { MessagePartsList } from '../src/components/chat/MessagePartsList';
-import { ModelPicker } from '../src/components/ModelPicker';
-import { CURRENT_USER, type ChatMessage } from '../src/opencode/mapToChatMessage';
-import type { MessagePart, ReasoningPart, TextPart } from '../src/opencode/types';
-import { useChatSession } from '../src/opencode/useChatSession';
-import { useConnectionConfig } from '../src/storage/connectionConfig';
-import { useColors } from '../src/theme/colors';
+export default function WelcomeScreen() {
+  const { width, height } = useWindowDimensions();
+  const [fontsLoaded] = useFonts({ HankenGrotesk_400Regular, HankenGrotesk_500Medium, HankenGrotesk_600SemiBold, PlusJakartaSans_700Bold, PlusJakartaSans_800ExtraBold });
+  const canvasWidth = Math.min(width, 448);
+  const heroSize = Math.min(canvasWidth - 40, Math.max(260, height * 0.44), 400);
+  const compact = height < 760;
 
-function isTextLike(part: MessagePart): part is TextPart | ReasoningPart {
-  return part.type === 'text' || part.type === 'reasoning';
-}
+  if (!fontsLoaded) return <View style={styles.loading} />;
 
-function flattenForCopy(message: ChatMessage): string {
-  return message.parts.filter(isTextLike).map((p) => p.text).join('\n\n');
-}
-
-export default function ChatScreen() {
-  const colors = useColors();
-  const { config, isLoaded } = useConnectionConfig();
-  const {
-    client,
-    messages,
-    connectionState,
-    isGenerating,
-    error,
-    canRetry,
-    retryLastMessage,
-    sendMessage,
-    interrupt,
-    startNewChat,
-    selectedModel,
-    setSelectedModel,
-    refresh,
-  } = useChatSession();
-
-  const [isModelPickerVisible, setIsModelPickerVisible] = useState(false);
-
-  function handleSend(newMessages: IMessage[] = []) {
-    const text = newMessages[0]?.text?.trim();
-    if (text) sendMessage(text);
-  }
-
-  function handleNewChat() {
-    Alert.alert(
-      'Start a new chat?',
-      'This clears the current conversation from view. The old one stays on the server.',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'New Chat',
-          style: 'destructive',
-          onPress: () => {
-            Haptics.selectionAsync();
-            startNewChat();
-          },
-        },
-      ],
-    );
-  }
-
-  const dotColor =
-    connectionState === 'live' ? colors.success : connectionState === 'reconnecting' ? colors.warning : colors.textMuted;
-
-  if (isLoaded && !config) {
-    return (
-      <SafeAreaView style={[styles.container, styles.emptyState, { backgroundColor: colors.background }]}>
-        <Text style={[styles.emptyTitle, { color: colors.text }]}>Connect to your OpenCode server</Text>
-        <Text style={[styles.emptySubtitle, { color: colors.textMuted }]}>
-          Point this app at a running opencode serve to start chatting.
-        </Text>
-        <Pressable
-          style={[styles.primaryButton, { backgroundColor: colors.accent }]}
-          onPress={() => router.push('/settings')}
-        >
-          <Text style={styles.primaryButtonText}>Open Settings</Text>
-        </Pressable>
-      </SafeAreaView>
-    );
-  }
+  const openChat = () => router.push('/home');
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]} edges={['top']}>
-      <View style={[styles.header, { borderColor: colors.border }]}>
-        <View style={styles.headerLeft}>
-          <View style={[styles.dot, { backgroundColor: dotColor }]} />
-          <Pressable onPress={() => setIsModelPickerVisible(true)}>
-            <Text style={[styles.modelLabel, { color: colors.text }]} numberOfLines={1}>
-              {selectedModel ? selectedModel.modelID : 'Default model'} ▾
-            </Text>
+    <SafeAreaView style={styles.screen} edges={['top']}>
+      <StatusBar style="light" />
+      <View style={[styles.canvas, { width: canvasWidth }]}>
+        <View style={[styles.hero, { height: heroSize + (compact ? 4 : 16) }]}>
+          <View style={[styles.glow, { width: heroSize * 0.76, height: heroSize * 0.76 }]} />
+          <Image source={heroImage} style={[styles.heroImage, { width: heroSize, height: heroSize }]} contentFit="cover" />
+          <View style={[styles.floatingIcon, styles.soundwave, { left: Math.max(38, (canvasWidth - heroSize) / 2 + 18) }]}>
+            <Image source={soundwaveIcon} style={styles.smallIcon} contentFit="contain" />
+          </View>
+          <View style={[styles.floatingIcon, styles.sparkles, { right: Math.max(38, (canvasWidth - heroSize) / 2 + 18) }]}>
+            <Image source={sparklesIcon} style={styles.smallIcon} contentFit="contain" />
+          </View>
+          <Pressable accessibilityRole="button" onPress={openChat} hitSlop={12} style={styles.signIn}>
+            <Text style={styles.signInText}>Entrar</Text>
           </Pressable>
         </View>
-        <View style={styles.headerRight}>
-          <Pressable onPress={() => router.push('/browse')} hitSlop={8} style={styles.headerButton}>
-            <Text style={[styles.headerIcon, { color: colors.accent }]}>🔍</Text>
+
+        <View style={[styles.content, compact && styles.contentCompact]}>
+          <View style={styles.brandPill}>
+            <Image source={brandIcon} style={styles.brandIcon} contentFit="contain" />
+            <Text style={styles.brandText}>SPOT.AI</Text>
+          </View>
+          <Text style={[styles.title, compact && styles.titleCompact]}>
+            Sua música,{`\n`}<Text style={styles.titleAccent}>reimaginada pela{`\n`}IA</Text>
+          </Text>
+          <Text style={[styles.subtitle, compact && styles.subtitleCompact]}>
+            Conecte seu Spotify e deixe nossa inteligência{`\n`}artificial encontrar sua próxima obsessão{`\n`}musical.
+          </Text>
+          <Pressable accessibilityRole="button" accessibilityLabel="Conectar Spotify" onPress={openChat} style={({ pressed }) => [styles.spotifyButton, pressed && styles.spotifyButtonPressed]}>
+            <Image source={spotifyIcon} style={styles.spotifyIcon} contentFit="contain" />
+            <Text style={styles.spotifyButtonText}>Conectar Spotify</Text>
           </Pressable>
-          <Pressable onPress={handleNewChat} hitSlop={8} style={styles.headerButton}>
-            <Text style={[styles.headerIcon, { color: colors.accent }]}>＋</Text>
-          </Pressable>
-          <Pressable onPress={() => router.push('/settings')} hitSlop={8} style={styles.headerButton}>
-            <Text style={[styles.headerIcon, { color: colors.accent }]}>⚙︎</Text>
-          </Pressable>
+          <Text style={styles.terms}>Ao conectar, você concorda com nossos Termos e{`\n`}Privacidade.</Text>
         </View>
       </View>
-
-      <View style={styles.chatContainer}>
-        <Chat<ChatMessage>
-          messages={messages}
-          onSend={handleSend}
-          user={CURRENT_USER}
-          colorScheme="dark"
-          theme={{
-            colors: {
-              background: colors.background,
-              incomingBubble: colors.surface,
-              outgoingBubble: colors.accent,
-              accent: colors.accent,
-            },
-          }}
-          renderAvatar={() => null}
-          renderMessageText={(props) => (
-            <MessagePartsList message={props.currentMessage} position={props.position ?? 'left'} />
-          )}
-          renderFooter={() =>
-            isGenerating ? (
-              <View style={styles.typingRow}>
-                <Text style={{ color: colors.textMuted, fontSize: 12 }}>OpenCode is working…</Text>
-              </View>
-            ) : null
-          }
-          renderChatFooter={() => (
-            <>
-              <ConnectionBanner state={connectionState} onRetry={refresh} />
-              {error && (
-                <View style={[styles.errorBar, { backgroundColor: colors.warningBackground }]}>
-                  <Text style={[styles.errorText, { color: colors.danger }]} numberOfLines={2}>
-                    {error}
-                  </Text>
-                  {canRetry && (
-                    <Pressable onPress={retryLastMessage} hitSlop={8}>
-                      <Text style={[styles.retryText, { color: colors.danger }]}>Retry</Text>
-                    </Pressable>
-                  )}
-                </View>
-              )}
-            </>
-          )}
-          renderSend={(props) =>
-            isGenerating ? (
-              <Pressable
-                style={[styles.stopButton, { backgroundColor: colors.danger }]}
-                onPress={() => {
-                  Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                  interrupt();
-                }}
-              >
-                <Text style={styles.stopIcon}>■</Text>
-              </Pressable>
-            ) : (
-              <Send {...props} />
-            )
-          }
-          messageActions={(message: ChatMessage) => [
-            { label: 'Copy', onPress: () => Clipboard.setStringAsync(flattenForCopy(message)) },
-          ]}
-          listProps={{ onRefresh: refresh, refreshing: false }}
-        />
-      </View>
-
-      <ModelPicker
-        visible={isModelPickerVisible}
-        onClose={() => setIsModelPickerVisible(false)}
-        client={client}
-        selected={selectedModel}
-        onSelect={setSelectedModel}
-      />
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  chatContainer: {
-    flex: 1,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-  },
-  headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexShrink: 1,
-  },
-  headerRight: {
-    flexDirection: 'row',
-    gap: 16,
-  },
-  headerButton: {
-    padding: 2,
-  },
-  headerIcon: {
-    fontSize: 18,
-  },
-  dot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  modelLabel: {
-    fontSize: 15,
-    fontWeight: '600',
-    flexShrink: 1,
-  },
-  typingRow: {
-    paddingHorizontal: 16,
-    paddingVertical: 4,
-  },
-  errorBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-  },
-  errorText: {
-    fontSize: 12,
-    flexShrink: 1,
-  },
-  retryText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  stopButton: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginHorizontal: 6,
-  },
-  stopIcon: {
-    color: '#FFFFFF',
-    fontSize: 12,
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 32,
-    gap: 12,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    textAlign: 'center',
-  },
-  emptySubtitle: {
-    fontSize: 14,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  primaryButton: {
-    marginTop: 8,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    borderRadius: 10,
-  },
-  primaryButtonText: {
-    color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '600',
-  },
+  loading: { flex: 1, backgroundColor: '#131313' },
+  screen: { flex: 1, alignItems: 'center', backgroundColor: '#131313' },
+  canvas: { flex: 1, justifyContent: 'space-between' },
+  hero: { alignItems: 'center', justifyContent: 'center', paddingTop: 4 },
+  glow: { position: 'absolute', borderRadius: 999, backgroundColor: 'rgba(83,224,118,0.16)', shadowColor: '#53E076', shadowOpacity: 0.4, shadowRadius: 48 },
+  heroImage: { borderRadius: 999 },
+  floatingIcon: { position: 'absolute', width: 48, height: 32, alignItems: 'center', justifyContent: 'center', borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.08)', backgroundColor: 'rgba(67,67,67,0.82)' },
+  soundwave: { top: '24%' },
+  sparkles: { bottom: '26%' },
+  smallIcon: { width: 14, height: 14 },
+  signIn: { position: 'absolute', right: 21, top: 6, padding: 8 },
+  signInText: { color: '#BCCBB9', fontFamily: 'HankenGrotesk_600SemiBold', fontSize: 14 },
+  content: { alignItems: 'center', paddingTop: 32, paddingHorizontal: 21, paddingBottom: 30, borderTopLeftRadius: 32, borderTopRightRadius: 32, borderWidth: 1, borderBottomWidth: 0, borderColor: 'rgba(255,255,255,0.07)', backgroundColor: 'rgba(28,28,28,0.96)' },
+  contentCompact: { paddingTop: 20, paddingBottom: 18 },
+  brandPill: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 13, paddingVertical: 5, borderRadius: 999, borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)', backgroundColor: '#201F1F' },
+  brandIcon: { width: 12, height: 14 },
+  brandText: { color: '#BCCBB9', fontFamily: 'HankenGrotesk_500Medium', fontSize: 12, letterSpacing: 1.2 },
+  title: { marginTop: 16, color: '#E5E2E1', fontFamily: 'PlusJakartaSans_800ExtraBold', fontSize: 40, lineHeight: 48, textAlign: 'center' },
+  titleCompact: { marginTop: 10, fontSize: 34, lineHeight: 40 },
+  titleAccent: { color: '#53E076' },
+  subtitle: { marginTop: 16, color: '#BCCBB9', fontFamily: 'HankenGrotesk_400Regular', fontSize: 16, lineHeight: 24, textAlign: 'center' },
+  subtitleCompact: { marginTop: 10, fontSize: 14, lineHeight: 20 },
+  spotifyButton: { width: '100%', height: 60, marginTop: 32, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 12, borderRadius: 999, backgroundColor: '#53E076' },
+  spotifyButtonPressed: { opacity: 0.82, transform: [{ scale: 0.99 }] },
+  spotifyIcon: { width: 24, height: 24 },
+  spotifyButtonText: { color: '#003914', fontFamily: 'PlusJakartaSans_700Bold', fontSize: 22 },
+  terms: { marginTop: 15, color: 'rgba(188,203,185,0.5)', fontFamily: 'HankenGrotesk_500Medium', fontSize: 12, lineHeight: 16, textAlign: 'center' },
 });

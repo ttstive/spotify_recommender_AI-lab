@@ -28,6 +28,9 @@ export default function RootLayout() {
               }}
             >
               <Stack.Screen name="index" options={{ headerShown: false }} />
+              <Stack.Screen name="chat" options={{ headerShown: false }} />
+              <Stack.Screen name="home" options={{ headerShown: false }} />
+              <Stack.Screen name="recommendation" options={{ headerShown: false }} />
               <Stack.Screen name="browse" options={{ title: 'Browse Catalog' }} />
               <Stack.Screen
                 name="settings"

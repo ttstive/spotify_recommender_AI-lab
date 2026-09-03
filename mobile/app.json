@@ -6,19 +6,21 @@
     "scheme": "opencode-chat",
     "platforms": [
       "ios",
-      "android"
+      "android",
+      "web"
     ],
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "dark",
-    "backgroundColor": "#0B1524",
+    "backgroundColor": "#131313",
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.anonymous.mobile"
     },
     "android": {
+      "softwareKeyboardLayoutMode": "resize",
       "adaptiveIcon": {
-        "backgroundColor": "#0B1524",
+        "backgroundColor": "#131313",
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"

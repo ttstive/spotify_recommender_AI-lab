@@ -28,7 +28,7 @@ export function mapToChatMessage(message: OpenCodeMessage): ChatMessage {
   return {
     _id: message.id,
     text: RENDER_SENTINEL,
-    createdAt: new Date(),
+    createdAt: message.createdAt ? new Date(message.createdAt) : new Date(),
     user: message.role === 'user' ? CURRENT_USER : ASSISTANT_USER,
     parts: message.parts,
   };

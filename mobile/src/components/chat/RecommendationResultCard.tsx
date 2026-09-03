@@ -1,8 +1,11 @@
-import { StyleSheet, Text, View } from 'react-native';
+import { Image } from 'expo-image';
+import { ExternalLink } from 'lucide-react-native';
+import { useEffect, useState } from 'react';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 
+import { getAlbumArt } from '../../api/albumArt';
 import type { RecommendedTrackOut } from '../../api/types';
 import { useColors } from '../../theme/colors';
-import { TrackList } from '../catalog/TrackList';
 
 export interface PlaylistToolResult {
   title?: string;
@@ -37,6 +40,29 @@ export function parsePlaylistResult(output: string): PlaylistToolResult | null {
   }
 }
 
+function ResultTrack({ track }: { track: RecommendedTrackOut }) {
+  const colors = useColors();
+  const [art, setArt] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    getAlbumArt(track.spotify_url).then((url) => active && setArt(url));
+    return () => { active = false; };
+  }, [track.spotify_url]);
+
+  return (
+    <Pressable style={[styles.track, { borderColor: colors.border }]} onPress={() => Linking.openURL(track.spotify_url)}>
+      <View style={styles.coverFrame}>
+        {art ? <Image source={{ uri: art }} style={styles.cover} contentFit="cover" transition={150} /> : null}
+      </View>
+      <View style={styles.trackText}>
+        <Text style={[styles.trackName, { color: colors.text }]} numberOfLines={1}>{track.name}</Text>
+        <Text style={[styles.artist, { color: colors.textMuted }]} numberOfLines={1}>{track.artist}</Text>
+      </View>
+      <ExternalLink color={colors.accent} size={17} />
+    </Pressable>
+  );
+}
+
 export function RecommendationResultCard({ result }: { result: PlaylistToolResult }) {
   const colors = useColors();
   return (
@@ -44,7 +70,17 @@ export function RecommendationResultCard({ result }: { result: PlaylistToolResul
       <Text style={[styles.title, { color: colors.text }]} numberOfLines={1}>
         {result.title ?? (result.seed ? `Playlist inspired by "${result.seed}"` : 'Recommendations')}
       </Text>
-      <TrackList tracks={result.tracks} scrollEnabled={false} />
+      <Text style={[styles.subtitle, { color: colors.textMuted }]}>
+        {result.seed_type === 'artist' && result.seed
+          ? `Faixas de ${result.seed}`
+          : result.seed_type === 'similar_artist' && result.seed
+            ? `Artistas do mesmo universo musical de ${result.seed}`
+          : 'Resultados calculados pelo recomendador'}
+      </Text>
+      <View style={styles.list}>
+        {result.tracks.slice(0, 6).map((track) => <ResultTrack key={track.spotify_url} track={track} />)}
+      </View>
+      {result.tracks.length > 6 && <Text style={[styles.more, { color: colors.textMuted }]}>+ {result.tracks.length - 6} faixas na seleção</Text>}
     </View>
   );
 }
@@ -53,12 +89,20 @@ const styles = StyleSheet.create({
   container: {
     borderWidth: StyleSheet.hairlineWidth * 2,
     borderRadius: 12,
-    padding: 10,
-    marginVertical: 4,
-    gap: 6,
+    padding: 12,
+    gap: 8,
   },
   title: {
-    fontSize: 13,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: '700',
   },
+  subtitle: { fontSize: 12, marginBottom: 2 },
+  list: { gap: 7 },
+  track: { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 10, padding: 6, borderWidth: 1, borderRadius: 6, backgroundColor: '#171817' },
+  coverFrame: { width: 44, height: 44, borderRadius: 4, overflow: 'hidden', backgroundColor: '#2A2D2A' },
+  cover: { width: '100%', height: '100%' },
+  trackText: { flex: 1 },
+  trackName: { fontSize: 14, fontWeight: '700' },
+  artist: { fontSize: 12, marginTop: 2 },
+  more: { fontSize: 12, textAlign: 'center', paddingTop: 2 },
 });

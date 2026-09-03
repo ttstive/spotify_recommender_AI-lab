@@ -23,7 +23,6 @@ export function TrackList({
       data={tracks}
       keyExtractor={(track, index) => `${track.spotify_url}-${index}`}
       renderItem={({ item }) => <TrackListItem track={item} />}
-      ItemSeparatorComponent={() => <View style={[styles.separator, { backgroundColor: colors.border }]} />}
       ListHeaderComponent={ListHeaderComponent}
       ListEmptyComponent={
         <View style={styles.empty}>
@@ -37,9 +36,6 @@ export function TrackList({
 }
 
 const styles = StyleSheet.create({
-  separator: {
-    height: StyleSheet.hairlineWidth,
-  },
   empty: {
     paddingVertical: 24,
     alignItems: 'center',
