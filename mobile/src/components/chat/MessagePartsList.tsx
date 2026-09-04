@@ -19,14 +19,14 @@ function isGenerating(message: ChatMessage): boolean {
 export function MessagePartsList({ message, position }: { message: ChatMessage; position: 'left' | 'right' }) {
   const colors = useColors();
   const textColor = position === 'right' ? '#07150B' : colors.text;
-  const playlistPart = message.parts.find(
+  const playlistParts = message.parts.filter(
     (part) => part.type === 'tool'
       && part.state.status === 'completed'
       && part.state.output
       && isPlaylistTool(part.tool)
       && parsePlaylistResult(part.state.output),
   );
-  const renderable = playlistPart ? [playlistPart] : message.parts.filter((part) => part.type === 'text' && part.text.trim());
+  const renderable = playlistParts.length ? playlistParts : message.parts.filter((part) => part.type === 'text' && part.text.trim());
   const lastTextIndex = [...renderable].map((part) => part.type).lastIndexOf('text');
   const streaming = isGenerating(message);
 

@@ -46,33 +46,64 @@ const GENRE_TERMS: Record<string, string> = {
   eletronica: 'electronic', techno: 'techno', house: 'house', 'r&b': 'r-n-b',
 };
 
-function recommendationIntent(text: string): RecommendationIntent | null {
+function recommendationIntents(text: string): RecommendationIntent[] {
   const normalized = text.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
-  if (!/(recomend|playlist|musica|faixa|parecid|ouvir)/.test(normalized)) return null;
+  if (!/(recomend|playlist|musica|faixa|parecid|ouvir)/.test(normalized)) return [];
   const requestedSize = Number(normalized.match(/\b(\d{1,2})\s+(?:musica|musicas|faixa|faixas)/)?.[1]);
   const size = Number.isFinite(requestedSize) && requestedSize > 0 ? Math.min(requestedSize, 20) : 10;
+  const matched: Array<RecommendationIntent & { position: number }> = [];
 
   for (const [term, mood] of Object.entries(MOOD_TERMS)) {
-    if (new RegExp(`\\b${term}\\b`).test(normalized)) return { type: 'mood', seed: mood, size };
+    const position = normalized.search(new RegExp(`\\b${term}\\b`));
+    if (position >= 0) matched.push({ type: 'mood', seed: mood, size, position });
   }
 
   for (const [term, genre] of Object.entries(GENRE_TERMS)) {
-    if (new RegExp(`\\b${term.replace(' ', '\\s+')}\\b`).test(normalized)) return { type: 'genre', seed: genre, size };
+    const position = normalized.search(new RegExp(`\\b${term.replace(' ', '\\s+')}\\b`));
+    if (position >= 0) matched.push({ type: 'genre', seed: genre, size, position });
   }
+
+  const intents = matched
+    .sort((a, b) => a.position - b.position)
+    .filter((intent, index, all) => all.findIndex((other) => other.type === intent.type && other.seed === intent.seed) === index)
+    .map(({ position: _position, ...intent }) => intent);
+  if (intents.length) return intents;
 
   const explicitArtist = text.match(/(?:artista|cantor(?:a)?|banda)\s+([^?!,.]+)/i);
   if (explicitArtist?.[1]) {
-    return { type: normalized.includes('parecid') ? 'similar_artist' : 'artist', seed: explicitArtist[1].trim(), size };
+    return [{ type: normalized.includes('parecid') ? 'similar_artist' : 'artist', seed: explicitArtist[1].trim(), size }];
   }
 
   const byArtist = text.match(/(?:\bdo\b|\bda\b|\bde\b|\bby\b)\s+([^?!,.]+)/i);
   if (byArtist?.[1]) {
-    return { type: normalized.includes('parecid') ? 'similar_artist' : 'artist', seed: byArtist[1].trim(), size };
+    return [{ type: normalized.includes('parecid') ? 'similar_artist' : 'artist', seed: byArtist[1].trim(), size }];
   }
 
   const similarTo = text.match(/(?:parecid\w*\s+(?:com|a)|como)\s+([^?!,.]+)/i);
-  if (similarTo?.[1]) return { type: 'song', seed: similarTo[1].trim(), size };
-  return { type: 'mood', seed: 'happy', size };
+  if (similarTo?.[1]) return [{ type: 'song', seed: similarTo[1].trim(), size }];
+  return [{ type: 'mood', seed: 'happy', size }];
+}
+
+async function resolveRecommendationIntent(
+  intent: RecommendationIntent,
+  recommender: NonNullable<ReturnType<typeof createRecommenderClient>>,
+) {
+  let resolvedIntent = intent;
+  if (intent.type === 'song') {
+    const matches = await recommender.searchSongs(intent.seed, 'artist', 8).catch(() => []);
+    const isExactArtist = matches.some((item) => item.artist.split(';').some((name) => name.trim().toLowerCase() === intent.seed.toLowerCase()));
+    if (isExactArtist) resolvedIntent = { ...intent, type: 'similar_artist' };
+  }
+  const tracks = resolvedIntent.type === 'artist'
+    ? await recommender.getTracksByArtist(resolvedIntent.seed, resolvedIntent.size)
+    : resolvedIntent.type === 'similar_artist'
+      ? await recommender.getRecommendationsByArtist(resolvedIntent.seed, resolvedIntent.size)
+      : resolvedIntent.type === 'genre'
+        ? await recommender.getRecommendationsByGenre(resolvedIntent.seed, resolvedIntent.size)
+        : resolvedIntent.type === 'mood'
+          ? await recommender.getRecommendationsByMood(resolvedIntent.seed, resolvedIntent.size)
+          : await recommender.getRecommendationsBySong(resolvedIntent.seed, resolvedIntent.size);
+  return { resolvedIntent, tracks };
 }
 
 function dedupeParts(parts: MessagePart[]): MessagePart[] {
@@ -411,8 +442,8 @@ export function useChatSession() {
       pendingOptimisticIdRef.current = optimisticId;
       setMessages((prev) => [...prev, optimistic]);
 
-      const intent = recommendationIntent(text);
-      if (intent && recommender) {
+      const intents = recommendationIntents(text);
+      if (intents.length && recommender) {
         pendingOptimisticIdRef.current = null;
         const assistantId = `local-recommendation-${Date.now()}`;
         const startPart: MessagePart = { id: `${assistantId}-start`, sessionID: sessionId, messageID: assistantId, type: 'step-start' };
@@ -424,31 +455,24 @@ export function useChatSession() {
           parts: [startPart],
         }]);
         try {
-          let resolvedIntent = intent;
-          if (intent.type === 'song') {
-            const matches = await recommender.searchSongs(intent.seed, 'artist', 8).catch(() => []);
-            const isExactArtist = matches.some((item) => item.artist.split(';').some((name) => name.trim().toLowerCase() === intent.seed.toLowerCase()));
-            if (isExactArtist) resolvedIntent = { ...intent, type: 'similar_artist' };
-          }
-          const tracks = resolvedIntent.type === 'artist'
-            ? await recommender.getTracksByArtist(resolvedIntent.seed, resolvedIntent.size)
-            : resolvedIntent.type === 'similar_artist'
-              ? await recommender.getRecommendationsByArtist(resolvedIntent.seed, resolvedIntent.size)
-              : resolvedIntent.type === 'genre'
-                ? await recommender.getRecommendationsByGenre(resolvedIntent.seed, resolvedIntent.size)
-                : resolvedIntent.type === 'mood'
-                  ? await recommender.getRecommendationsByMood(resolvedIntent.seed, resolvedIntent.size)
-                  : await recommender.getRecommendationsBySong(resolvedIntent.seed, resolvedIntent.size);
-          const output = JSON.stringify({
-            title: resolvedIntent.type === 'mood' ? 'Uma seleção para o seu momento' : resolvedIntent.type === 'genre' ? `${resolvedIntent.size} faixas de ${resolvedIntent.seed}` : `Inspirada em ${resolvedIntent.seed}`,
-            seed_type: resolvedIntent.type,
-            seed: resolvedIntent.seed,
-            tracks,
+          const results = await Promise.all(intents.map((intent) => resolveRecommendationIntent(intent, recommender).catch(() => null)));
+          const recommendationParts: MessagePart[] = results.flatMap((result, index) => {
+            if (!result) return [];
+            const { resolvedIntent, tracks } = result;
+            const callId = `${assistantId}-${index}`;
+            const output = JSON.stringify({
+              title: resolvedIntent.type === 'mood' ? 'Uma seleção para o seu momento' : resolvedIntent.type === 'genre' ? `${resolvedIntent.size} faixas de ${resolvedIntent.seed}` : `Inspirada em ${resolvedIntent.seed}`,
+              seed_type: resolvedIntent.type,
+              seed: resolvedIntent.seed,
+              tracks,
+            });
+            return { id: `${callId}-tool`, sessionID: sessionId, messageID: assistantId, type: 'tool', callID: callId, tool: 'recommender_create_playlist', state: { status: 'completed', output } };
           });
+          if (!recommendationParts.length) throw new Error('No recommendations found');
           setMessages((prev) => prev.map((message) => message._id === assistantId ? {
             ...message,
             parts: [
-              { id: `${assistantId}-tool`, sessionID: sessionId, messageID: assistantId, type: 'tool', callID: assistantId, tool: 'recommender_create_playlist', state: { status: 'completed', output } },
+              ...recommendationParts,
               { id: `${assistantId}-finish`, sessionID: sessionId, messageID: assistantId, type: 'step-finish', reason: 'stop' },
             ],
           } : message));
